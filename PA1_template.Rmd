@@ -8,31 +8,94 @@ output:
 
 ## Loading and preprocessing the data
 ```{r}
+library(plyr)
 detach("package:plyr", unload=TRUE)
 library(dplyr)
+library(ggplot2)
+library(timeDate)
+library(lattice)
 activity <- read.csv("activity.csv")
 activity <- tbl_df(activity)
+activity
+```
+## Mean total number of steps taken per day
+### total number of steps taken per day
+```{r}
 by_date = group_by(activity, date)
-steps_per_day = summarize(by_date, totalSteps = sum(steps, na.rm = TRUE))
+steps_per_day = summarize(by_date, totalSteps = sum(steps, na.rm = TRUE), avgSteps = mean(steps,na.rm = TRUE), mediSteps = median(steps, na.rm = TRUE))
 steps_per_day
 ```
-## Histogram
+### Histogram of the total number of steps taken each day
 
 ```{r}
 hist(steps_per_day$totalSteps)
 ```
-## What is mean total number of steps taken per day?
-
+### Mean and median number of steps taken each day?
 
 ```{r}
-summarise(steps_per_day, mean = mean(totalSteps), median = median(totalSteps))
+select(steps_per_day,date, avgSteps, mediSteps)
 ```
-## What is the average daily activity pattern?
+## Average daily activity pattern
+### Time Series plot of 5 minute interval 
+```{r}
+by_interval = group_by(activity, interval)
+steps_per_interval = summarize(by_interval, totalSteps = sum(steps, na.rm = TRUE), avgSteps = mean(steps,na.rm = TRUE), mediSteps = median(steps, na.rm = TRUE))
+steps_per_interval
+ggplot(steps_per_interval, aes(x = factor(interval), y = avgSteps)) + geom_line(aes(group =1))
+```
+### The interval with the maximum avg no. of Steps
 
-
+835 
 
 ## Imputing missing values
 
+### Count number of missing values
+
+```{r}
+count(activity[is.na(activity),])
+```
+
+### Strategy for imputting missing values
+To account for missing values, i am using the average value from the same interval to populate values to the missing elemnets. To do this;
+
+* Merge my table with missing values, with the summarized table created earlier, using interval as the intersection. This creates a new table with the original table colums plus the value of the average of each corresponding interval.
+* Next I check the NAs in the steps column and replace them with the average steps column value.
+*Create a new dataset that is equal to the original dataset but with the missing data filled in
+
+```{r}
+activity2 = tbl_df(merge(activity,steps_per_interval, by = "interval", all.x =TRUE))
+activity_imputed = tbl_df(transform(activity2, steps = ifelse(is.na(activity2$steps),activity2$avgSteps,activity2$steps)))
+activity_imputed = select(activity_imputed, steps, date,interval)
+```
+
+### New dataset
+```{r}
+activity_imputed
+```
+### Histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day for new data set
+
+```{r}
+by_date2 = group_by(activity_imputed, date)
+steps_per_day2 = summarize(by_date2, totalSteps = sum(steps, na.rm = TRUE), avgSteps = mean(steps,na.rm = TRUE), mediSteps = median(steps, na.rm = TRUE))
+steps_per_day2
+hist(steps_per_day2$totalSteps)
+```
 
 
-## Are there differences in activity patterns between weekdays and weekends?
+## Differences in activity patterns between weekdays and weekends?
+
+### new factor variable in the dataset with two levels – “weekday” and “weekend”
+
+```{r}
+activity_imputed = tbl_df(transform(activity_imputed, weekday = ifelse(isWeekday(activity_imputed$date), "weekday", "weekend")))
+```
+
+### Panel Plot
+
+```{r}
+by_interval_weekday = group_by(activity_imputed, interval, weekday)
+steps_by_interval_weekday = summarize(by_interval_weekday, avgSteps = mean(steps))
+ggplot(steps_by_interval_weekday, aes(interval, avgSteps)) + geom_line() + facet_wrap(~ weekday, ncol=1)
+
+```
+
